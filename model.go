@@ -12,6 +12,7 @@ type fileNode struct {
 	name     string
 	path     string
 	isDir    bool
+	loaded   bool       // Whether children have been loaded (for lazy loading)
 	children []fileNode
 }
 

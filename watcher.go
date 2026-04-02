@@ -128,8 +128,24 @@ func (m *model) refreshTree() {
 		selectedPath = items[m.cursor].path
 	}
 
-	// Rebuild tree
+	// Remember expanded paths
+	expandedPaths := make(map[string]bool)
+	for path, expanded := range m.expanded {
+		if expanded {
+			expandedPaths[path] = true
+		}
+	}
+
+	// Rebuild tree (shallow - only root level)
 	m.root = buildTree(m.rootPath)
+
+	// Reload children for previously expanded directories
+	for path := range expandedPaths {
+		node := findNode(&m.root, path)
+		if node != nil && node.isDir {
+			node.loadChildren()
+		}
+	}
 
 	// Restore cursor position
 	newItems := m.getVisibleItems()

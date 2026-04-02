@@ -90,6 +90,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(items) {
 				item := items[m.cursor]
 				if item.isDir {
+					// Toggle expansion
+					if !m.expanded[item.path] {
+						// Expanding: load children if not loaded
+						m.loadDirChildren(item.path)
+					}
 					m.expanded[item.path] = !m.expanded[item.path]
 				} else {
 					m.loadFile(item.path)
@@ -109,6 +114,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(items) {
 				item := items[m.cursor]
 				if item.isDir {
+					// Load children before expanding
+					m.loadDirChildren(item.path)
 					m.expanded[item.path] = true
 				} else {
 					m.loadFile(item.path)
@@ -121,4 +128,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// loadDirChildren finds a directory node by path and loads its children.
+// This is used for lazy loading when a directory is expanded.
+func (m *model) loadDirChildren(dirPath string) {
+	node := findNode(&m.root, dirPath)
+	if node != nil {
+		node.loadChildren()
+	}
+}
+
+// findNode recursively finds a node by path in the tree.
+func findNode(node *fileNode, path string) *fileNode {
+	if node.path == path {
+		return node
+	}
+	for i := range node.children {
+		if found := findNode(&node.children[i], path); found != nil {
+			return found
+		}
+	}
+	return nil
 }

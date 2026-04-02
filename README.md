@@ -27,6 +27,9 @@ Go, Python, JavaScript, TypeScript, JSX, TSX, Java, C, C++, Rust, Ruby, PHP, Bas
 
 ```bash
 go install github.com/asathinkeroops/tiny-code-viewer@latest
+
+## run 
+tiny-code-viewer
 ```
 
 ### Build from Source
