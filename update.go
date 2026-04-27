@@ -57,7 +57,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refreshTree()
 		case "up", "k":
 			if m.focusLeft {
-				if m.cursor > 0 {
+				if m.cursor > 1 {
 					m.cursor--
 					if m.cursor < m.treeScroll {
 						m.treeScroll = m.cursor

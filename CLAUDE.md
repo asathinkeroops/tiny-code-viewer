@@ -111,12 +111,19 @@ type debouncedRefreshMsg struct{} // Debounced refresh message
 
 ## Styling System
 
-Uses Lipgloss for terminal styling (`model.go:52-68`):
+Uses Lipgloss for terminal styling (`model.go:53-74`):
 
-- **dirStyle**: Blue foreground (#34), bold - for directories
-- **fileStyle**: Gray foreground (#244) - for files
+- **dirStyle**: Light blue foreground (#39), bold - for directories
+- **fileStyle**: Light gray foreground (#252) - for files
 - **selectedStyle**: Light blue background (#63), white foreground (#0), bold - for selected items
 - **titleStyle**: Blue foreground (#26), bold - for panel titles
+- **connectorStyle**: Dark gray foreground (#240) - for tree branch connectors
+
+### Tree Connectors
+
+The file tree uses Unicode box-drawing characters (`├─`, `└─`, `│`) to display
+a structured tree with visual branch lines. The root node (depth 0) is skipped
+in the display since the path header already shows the current directory.
 
 ## Key Implementation Details
 

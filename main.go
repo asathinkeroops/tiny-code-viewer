@@ -15,14 +15,18 @@ func initialModel() model {
 	}
 	absPath, _ := filepath.Abs(startPath)
 
-	return model{
+	m := model{
 		root:        buildTree(absPath),
 		rootPath:    absPath,
 		expanded:    make(map[string]bool),
 		focusLeft:   true,
+		cursor:      1, // Skip root node, start at first child
 		watcher:     initialWatcher(),
 		watchedDirs: make(map[string]bool),
 	}
+	// Root directory is always expanded
+	m.expanded[absPath] = true
+	return m
 }
 
 func main() {

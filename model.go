@@ -52,18 +52,20 @@ type model struct {
 
 var (
 	dirStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("34")).
+		Foreground(lipgloss.Color("39")).
 		Bold(true)
 
 	fileStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("244"))
+		Foreground(lipgloss.Color("252"))
 
 	selectedStyle = lipgloss.NewStyle().
-		Background(lipgloss.Color("63")).
-		Foreground(lipgloss.Color("0")).
+		Foreground(lipgloss.Color("51")).
 		Bold(true)
 
 	titleStyle = lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("26"))
+
+	connectorStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240"))
 )

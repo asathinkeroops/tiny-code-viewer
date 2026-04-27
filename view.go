@@ -25,12 +25,10 @@ func (m model) renderTree() string {
 		Foreground(lipgloss.Color("136"))
 	header := pathStyle.Render(displayPath)
 
-	// Use same height calculation as View
 	panelHeight := m.height - 3
 	if panelHeight < 1 {
 		panelHeight = 10
 	}
-	// Account for header line
 	contentHeight := panelHeight - 1
 
 	var lines []string
@@ -38,44 +36,90 @@ func (m model) renderTree() string {
 
 	for i := m.treeScroll; i < end; i++ {
 		item := items[i]
-		name := filepath.Base(item.path)
 
-		// Add indentation based on depth
-		indent := strings.Repeat("  ", item.depth)
-
-		var prefix string
-		if item.isDir {
-			if m.expanded[item.path] {
-				prefix = "▼ "
-			} else {
-				prefix = "▶ "
-			}
-		} else {
-			prefix = ""
+		// Skip root node (depth 0) - header already shows the path
+		if item.depth == 0 {
+			continue
 		}
 
-		line := indent + prefix + name
+		name := filepath.Base(item.path)
+
+		// Build tree connector prefix for this item
+		connector := treeConnectorPrefix(items, i, item.depth)
+
+		var expandIcon string
+		if item.isDir {
+			if m.expanded[item.path] {
+				expandIcon = "▼ "
+			} else {
+				expandIcon = "▶ "
+			}
+		} else {
+			expandIcon = "  "
+		}
+
+		prefix := connectorStyle.Render(connector + expandIcon)
 
 		if i == m.cursor && m.focusLeft {
-			lines = append(lines, selectedStyle.Render(line))
+			lines = append(lines, prefix+selectedStyle.Render(name))
 		} else if i == m.cursor {
-			// Cursor visible but not focused
-			style := lipgloss.NewStyle().Background(lipgloss.Color("238"))
+			style := lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
 			if item.isDir {
-				lines = append(lines, style.Foreground(lipgloss.Color("34")).Bold(true).Render(line))
+				lines = append(lines, prefix+style.Bold(true).Render(name))
 			} else {
-				lines = append(lines, style.Foreground(lipgloss.Color("244")).Render(line))
+				lines = append(lines, prefix+style.Render(name))
 			}
 		} else {
 			if item.isDir {
-				lines = append(lines, dirStyle.Render(line))
+				lines = append(lines, dirStyle.Render(prefix+name))
 			} else {
-				lines = append(lines, fileStyle.Render(line))
+				lines = append(lines, fileStyle.Render(prefix+name))
 			}
 		}
 	}
 
 	return header + "\n" + strings.Join(lines, "\n")
+}
+
+// treeConnectorPrefix builds the connector string for an item based on its
+// position in the tree. Uses box-drawing characters:
+//
+//	├─  for a non-last child, └─  for the last child
+//	│   for an ancestor that still has more siblings below
+func treeConnectorPrefix(items []itemInfo, idx int, depth int) string {
+	var b strings.Builder
+
+	// Ancestor connectors: for each level 1 to depth-1
+	for level := 1; level < depth; level++ {
+		if hasLaterSiblingAtLevel(items, idx, level) {
+			b.WriteString("│  ")
+		} else {
+			b.WriteString("   ")
+		}
+	}
+
+	// Item connector at current depth
+	if hasLaterSiblingAtLevel(items, idx, depth) {
+		b.WriteString("├─ ")
+	} else {
+		b.WriteString("└─ ")
+	}
+
+	return b.String()
+}
+
+// hasLaterSiblingAtLevel checks whether any item after idx has the given depth,
+// stopping if a shallower depth is encountered first.
+func hasLaterSiblingAtLevel(items []itemInfo, idx int, level int) bool {
+	for j := idx + 1; j < len(items); j++ {
+		if items[j].depth < level {
+			return false
+		}
+		if items[j].depth == level {
+			return true
+		}
+	}
+	return false
 }
 
 func (m model) renderPreview() string {
