@@ -1,14 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 )
@@ -273,36 +271,41 @@ func (m *model) renderPreview() string {
 		return "  Select a file to preview"
 	}
 
-	var buf bytes.Buffer
-	lang := getLanguage(m.filePath)
-	err := quick.Highlight(&buf, m.content, lang, "terminal256", "friendly")
-	if err != nil {
-		buf.WriteString(m.content)
-	}
-
-	highlighted := buf.String()
-	lines := strings.Split(highlighted, "\n")
-	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
+	lines := m.highlightedLines
+	if lines == nil {
+		return "  Preview not available"
 	}
 
 	textWidth := m.previewTextWidth()
-	if textWidth < 1 {
-		textWidth = 1
+
+	gutterWidth := numWidth(len(lines)) + lineNumSepWidth
+	codeWidth := textWidth - 1 - gutterWidth
+	if codeWidth < 1 {
+		codeWidth = 1
 	}
 	contentHeight := m.panelHeight() - 1
 	if contentHeight < 1 {
 		contentHeight = 1
 	}
 
-	// Wrap each source line to fit preview width, produce flat list of display lines
-	var wrappedLines []string
-	for _, line := range lines {
-		wrapped := wrapLineToWidth(line, textWidth)
-		wrappedLines = append(wrappedLines, wrapped...)
+	type wrappedLine struct {
+		text    string
+		lineNum int
+		isFirst bool
 	}
 
-	// Clamp scroll position
+	var wrappedLines []wrappedLine
+	for lineNum, line := range lines {
+		wrapped := wrapLineToWidth(line, codeWidth)
+		for i, wl := range wrapped {
+			wrappedLines = append(wrappedLines, wrappedLine{
+				text:    wl,
+				lineNum: lineNum + 1,
+				isFirst: i == 0,
+			})
+		}
+	}
+
 	maxScroll := len(wrappedLines) - contentHeight
 	if maxScroll < 0 {
 		maxScroll = 0
@@ -310,6 +313,7 @@ func (m *model) renderPreview() string {
 	start := m.previewScroll
 	if start > maxScroll {
 		start = maxScroll
+		m.previewScroll = start
 	}
 	if start < 0 {
 		start = 0
@@ -321,9 +325,28 @@ func (m *model) renderPreview() string {
 	}
 
 	resetCode := "\x1b[0m"
-	visibleLines := make([]string, end-start)
+	scrollBar := renderScrollBar(start, end, len(wrappedLines), contentHeight)
+
+	visibleLines := make([]string, 0, end-start)
+	contentWidth := textWidth - 1
+	contentStyle := lipgloss.NewStyle().Width(contentWidth)
 	for i := start; i < end; i++ {
-		visibleLines[i-start] = wrappedLines[i] + resetCode
+		wl := wrappedLines[i]
+
+		gutter := ""
+		if wl.isFirst {
+			gutter = fmtLineNum(wl.lineNum, len(lines))
+		} else {
+			gutter = lineNumBlank(len(lines))
+		}
+
+		codeLine := gutter + resetCode + wl.text + resetCode
+
+		bar := ""
+		if i-start < len(scrollBar) {
+			bar = scrollBar[i-start]
+		}
+		visibleLines = append(visibleLines, contentStyle.Render(codeLine)+bar)
 	}
 
 	titleText := filepath.Base(m.filePath)
@@ -410,4 +433,76 @@ func (m *model) View() string {
 	helpBar := helpLine
 
 	return panels + "\n" + helpBar
+}
+
+var (
+	scrollTrackStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("235"))
+	scrollThumbStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+)
+
+func renderScrollBar(start, end, total, height int) []string {
+	if total <= height {
+		return nil
+	}
+
+	bar := make([]string, height)
+
+	thumbStart := int(float64(start) / float64(total) * float64(height))
+	thumbEnd := int(float64(end) / float64(total) * float64(height))
+	if thumbEnd <= thumbStart {
+		thumbEnd = thumbStart + 1
+	}
+	if thumbStart < 0 {
+		thumbStart = 0
+	}
+	if thumbEnd > height {
+		thumbEnd = height
+	}
+
+	for i := 0; i < height; i++ {
+		if i >= thumbStart && i < thumbEnd {
+			bar[i] = scrollThumbStyle.Render("█")
+		} else {
+			bar[i] = scrollTrackStyle.Render("│")
+		}
+	}
+
+	return bar
+}
+
+var (
+	lineNumStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+	lineNumSepStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
+)
+
+const lineNumSepWidth = 3
+
+func numWidth(n int) int {
+	if n < 10 {
+		return 1
+	}
+	if n < 100 {
+		return 2
+	}
+	if n < 1000 {
+		return 3
+	}
+	if n < 10000 {
+		return 4
+	}
+	if n < 100000 {
+		return 5
+	}
+	return 6
+}
+
+func fmtLineNum(num, total int) string {
+	pad := numWidth(total)
+	numStr := fmt.Sprintf("%*d", pad, num)
+	return lineNumStyle.Render(numStr) + lineNumSepStyle.Render(" │ ")
+}
+
+func lineNumBlank(total int) string {
+	pad := numWidth(total)
+	return strings.Repeat(" ", pad) + "   "
 }

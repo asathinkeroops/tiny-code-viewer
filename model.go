@@ -40,7 +40,9 @@ type model struct {
 	previewScroll int
 	focusLeft     bool
 	expanded      map[string]bool
-	lastKeyTime   time.Time
+
+	highlightedLines []string
+	highlightedPath  string
 
 	// File watching
 	watcher       *fsnotify.Watcher

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/alecthomas/chroma/v2/quick"
 )
 
 func isBinaryFile(path string) bool {
@@ -104,11 +107,15 @@ func getLanguage(filename string) string {
 }
 
 func (m *model) loadFile(path string) {
-	m.previewScroll = 0 // Reset scroll when loading new file
+	m.previewScroll = 0
+	m.highlightedLines = nil
+	m.highlightedPath = ""
 
 	if isBinaryFile(path) {
 		m.content = "[Binary file - cannot preview]"
 		m.filePath = path
+		m.highlightedLines = strings.Split(m.content, "\n")
+		m.highlightedPath = path
 		return
 	}
 
@@ -116,9 +123,25 @@ func (m *model) loadFile(path string) {
 	if err != nil {
 		m.content = fmt.Sprintf("Error reading file: %v", err)
 		m.filePath = path
+		m.highlightedLines = strings.Split(m.content, "\n")
+		m.highlightedPath = path
 		return
 	}
 
 	m.content = string(data)
 	m.filePath = path
+
+	lang := getLanguage(path)
+	var buf bytes.Buffer
+	err = quick.Highlight(&buf, m.content, lang, "terminal256", "friendly")
+	if err != nil {
+		m.highlightedLines = strings.Split(m.content, "\n")
+	} else {
+		highlighted := buf.String()
+		m.highlightedLines = strings.Split(highlighted, "\n")
+		if len(m.highlightedLines) > 0 && m.highlightedLines[len(m.highlightedLines)-1] == "" {
+			m.highlightedLines = m.highlightedLines[:len(m.highlightedLines)-1]
+		}
+	}
+	m.highlightedPath = path
 }

@@ -9,7 +9,6 @@ import (
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case fsChangeEvent:
-		// File system changed, schedule debounced refresh
 		m.debounceMu.Lock()
 		if m.debounceTimer != nil {
 			m.debounceTimer.Stop()
@@ -17,34 +16,35 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.debounceTimer = time.NewTimer(200 * time.Millisecond)
 		m.debounceMu.Unlock()
 
-		// Return command that waits for the timer
 		return m, func() tea.Msg {
 			time.Sleep(200 * time.Millisecond)
 			return debouncedRefreshMsg{}
 		}
 
 	case debouncedRefreshMsg:
-		// Actually perform the refresh
 		m.refreshTree()
-		// Continue listening for file events
 		return m, m.waitForFsEvent()
 
-	case tea.KeyMsg:
-		// Limit key repeat rate for scroll operations
-		now := time.Now()
-		keyStr := msg.String()
-		isScrollKey := keyStr == "up" || keyStr == "down" || keyStr == "k" || keyStr == "j"
-		if isScrollKey && !m.focusLeft {
-			// Only apply delay limit for preview scrolling
-			if now.Sub(m.lastKeyTime) < 50*time.Millisecond {
-				return m, nil
+	case tea.MouseMsg:
+		if !m.focusLeft && m.content != "" {
+			scrollAmount := 3
+			if scrollAmount < 1 {
+				scrollAmount = 1
+			}
+			switch msg.Button {
+			case tea.MouseButtonWheelUp:
+				m.previewScroll -= scrollAmount
+				if m.previewScroll < 0 {
+					m.previewScroll = 0
+				}
+			case tea.MouseButtonWheelDown:
+				m.previewScroll += scrollAmount
 			}
 		}
-		m.lastKeyTime = now
 
-		switch keyStr {
+	case tea.KeyMsg:
+		switch msg.String() {
 		case "ctrl+c", "q":
-			// Clean up watcher before quitting
 			if m.watcher != nil {
 				m.watcher.Close()
 			}
@@ -52,7 +52,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			m.focusLeft = !m.focusLeft
 		case "r":
-			// Manual refresh
 			m.refreshTree()
 		case "up", "k":
 			if m.focusLeft {
@@ -80,20 +79,45 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.previewScroll++
 			}
+		case "pgup", "ctrl+u":
+			if !m.focusLeft && m.content != "" {
+				pageSize := m.panelHeight() / 2
+				if pageSize < 1 {
+					pageSize = 1
+				}
+				m.previewScroll -= pageSize
+				if m.previewScroll < 0 {
+					m.previewScroll = 0
+				}
+			}
+		case "pgdown", "ctrl+d":
+			if !m.focusLeft && m.content != "" {
+				pageSize := m.panelHeight() / 2
+				if pageSize < 1 {
+					pageSize = 1
+				}
+				m.previewScroll += pageSize
+			}
+		case "home", "g":
+			if !m.focusLeft && m.content != "" {
+				m.previewScroll = 0
+			}
+		case "end", "G":
+			if !m.focusLeft && m.content != "" {
+				m.previewScroll = 1 << 30
+			}
 		case "enter", " ":
 			items := m.getVisibleItems()
 			if m.cursor < len(items) {
 				item := items[m.cursor]
 				if item.isDir {
-					// Toggle expansion
 					if !m.expanded[item.path] {
-						// Expanding: load children if not loaded
 						m.loadDirChildren(item.path)
 					}
 					m.expanded[item.path] = !m.expanded[item.path]
 				} else {
 					m.loadFile(item.path)
-					m.focusLeft = false // Switch to preview after opening file
+					m.focusLeft = false
 				}
 			}
 		case "left", "h":
@@ -109,7 +133,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(items) {
 				item := items[m.cursor]
 				if item.isDir {
-					// Load children before expanding
 					m.loadDirChildren(item.path)
 					m.expanded[item.path] = true
 				} else {
