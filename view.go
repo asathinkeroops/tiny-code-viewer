@@ -6,12 +6,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
-func (m model) renderTree() string {
+func (m *model) renderTree() string {
 	items := m.getVisibleItems()
 
 	// Path header - replace HOME with ~
@@ -25,11 +27,11 @@ func (m model) renderTree() string {
 		Foreground(lipgloss.Color("136"))
 	header := pathStyle.Render(displayPath)
 
-	panelHeight := m.height - 3
-	if panelHeight < 1 {
-		panelHeight = 10
-	}
+	panelHeight := m.panelHeight()
 	contentHeight := panelHeight - 1
+
+	treeWidth := m.treePanelWidth()
+	maxLineWidth := treeWidth - 2
 
 	var lines []string
 	end := min(m.treeScroll+contentHeight, len(items))
@@ -54,9 +56,15 @@ func (m model) renderTree() string {
 			} else {
 				expandIcon = "▶ "
 			}
-		} else {
-			expandIcon = "  "
 		}
+
+		// Truncate name to fit within panel width
+		prefixLen := len(connector + expandIcon)
+		available := maxLineWidth - prefixLen
+		if available < 3 {
+			available = 3
+		}
+		name = truncateStr(name, available)
 
 		prefix := connectorStyle.Render(connector + expandIcon)
 
@@ -79,6 +87,59 @@ func (m model) renderTree() string {
 	}
 
 	return header + "\n" + strings.Join(lines, "\n")
+}
+
+func (m *model) panelHeight() int {
+	helpBarWidth := m.helpBarVisualWidth()
+	helpBarLines := 1
+	if m.width > 0 && helpBarWidth > m.width {
+		helpBarLines = (helpBarWidth + m.width - 1) / m.width
+	}
+	h := m.height - helpBarLines
+	if h < 1 {
+		h = 10
+	}
+	return h
+}
+
+func (m *model) helpBarVisualWidth() int {
+	sep := " │ "
+	items := []string{
+		"↑/k Up", "↓/j Down", "←/h Collapse", "→/l Expand",
+		"r Refresh", "Tab Switch [Preview]", "Enter Open", "q Quit",
+	}
+	return lipgloss.Width(sep + strings.Join(items, sep))
+}
+
+func (m *model) treePanelWidth() int {
+	w := m.width / 3
+	if w < 25 {
+		w = 25
+	}
+	if w > 55 {
+		w = 55
+	}
+	return w
+}
+
+func (m *model) previewTextWidth() int {
+	treeW := m.treePanelWidth()
+	// right panel width: m.width - treeW - 1 (subtract border only)
+	// minus PaddingLeft(1) = actual text area
+	w := m.width - treeW - 2
+	if w < 10 {
+		w = 10
+	}
+	return w
+}
+
+// truncateStr truncates a string to maxLen visual characters, adding "…" if truncated.
+func truncateStr(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen-1]) + "…"
 }
 
 // treeConnectorPrefix builds the connector string for an item based on its
@@ -122,12 +183,96 @@ func hasLaterSiblingAtLevel(items []itemInfo, idx int, level int) bool {
 	return false
 }
 
-func (m model) renderPreview() string {
+func isANSITerminator(b byte) bool {
+	return b >= 0x40 && b <= 0x7E
+}
+
+func extractPrefixSGR(line string) string {
+	if len(line) < 2 || line[0] != '\x1b' {
+		return ""
+	}
+	var b strings.Builder
+	i := 0
+	for i < len(line) && line[i] == '\x1b' {
+		j := i + 1
+		for j < len(line) && !isANSITerminator(line[j]) {
+			j++
+		}
+		if j >= len(line) {
+			break
+		}
+		j++
+		if line[j-1] == 'm' {
+			b.WriteString(line[i:j])
+		}
+		i = j
+	}
+	return b.String()
+}
+
+func wrapLineToWidth(line string, maxWidth int) []string {
+	if maxWidth <= 0 {
+		return []string{line}
+	}
+	if lipgloss.Width(line) <= maxWidth {
+		return []string{line}
+	}
+
+	prefixSGR := extractPrefixSGR(line)
+
+	var result []string
+	var current strings.Builder
+	col := 0
+	i := 0
+
+	for i < len(line) {
+		if line[i] == '\x1b' {
+			start := i
+			j := i + 1
+			for j < len(line) && !isANSITerminator(line[j]) {
+				j++
+			}
+			if j < len(line) {
+				j++
+			}
+			current.WriteString(line[start:j])
+			i = j
+			continue
+		}
+
+		r, size := utf8.DecodeRuneInString(line[i:])
+		rw := runewidth.RuneWidth(r)
+
+		if col+rw > maxWidth && col > 0 {
+			result = append(result, current.String())
+			current.Reset()
+			if prefixSGR != "" {
+				current.WriteString(prefixSGR)
+			}
+			col = 0
+			continue
+		}
+
+		current.WriteRune(r)
+		col += rw
+		i += size
+	}
+
+	if current.Len() > 0 {
+		result = append(result, current.String())
+	}
+	if len(result) == 0 {
+		result = append(result, "")
+	}
+
+	return result
+}
+
+func (m *model) renderPreview() string {
 	if m.content == "" {
 		return "  Select a file to preview"
 	}
 
-	// Highlight code
 	var buf bytes.Buffer
 	lang := getLanguage(m.filePath)
 	err := quick.Highlight(&buf, m.content, lang, "terminal256", "friendly")
@@ -137,54 +282,70 @@ func (m model) renderPreview() string {
 
 	highlighted := buf.String()
 	lines := strings.Split(highlighted, "\n")
-
-	// Use same height calculation as View
-	panelHeight := m.height - 3
-	if panelHeight < 1 {
-		panelHeight = 10
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
 	}
-	// Account for title line
-	contentHeight := panelHeight - 1
 
-	// Slice content for scroll
+	textWidth := m.previewTextWidth()
+	if textWidth < 1 {
+		textWidth = 1
+	}
+	contentHeight := m.panelHeight() - 1
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+
+	// Wrap each source line to fit preview width, produce flat list of display lines
+	var wrappedLines []string
+	for _, line := range lines {
+		wrapped := wrapLineToWidth(line, textWidth)
+		wrappedLines = append(wrappedLines, wrapped...)
+	}
+
+	// Clamp scroll position
+	maxScroll := len(wrappedLines) - contentHeight
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
 	start := m.previewScroll
-	end := min(start+contentHeight, len(lines))
-	if start > end {
+	if start > maxScroll {
+		start = maxScroll
+	}
+	if start < 0 {
 		start = 0
 	}
 
-	// Add reset code at end of each line to prevent color bleeding
+	end := start + contentHeight
+	if end > len(wrappedLines) {
+		end = len(wrappedLines)
+	}
+
 	resetCode := "\x1b[0m"
-	visibleLines := lines[start:end]
-	for i, line := range visibleLines {
-		visibleLines[i] = line + resetCode
+	visibleLines := make([]string, end-start)
+	for i := start; i < end; i++ {
+		visibleLines[i-start] = wrappedLines[i] + resetCode
 	}
 
-	title := titleStyle.Render(filepath.Base(m.filePath))
+	titleText := filepath.Base(m.filePath)
+	if len(wrappedLines) > contentHeight {
+		sourceStart := start + 1
+		scrollInfo := fmt.Sprintf(" [%d/%d lines]", sourceStart, len(wrappedLines))
+		titleText = titleText + scrollInfo
+	}
+	titleText = truncateStr(titleText, textWidth)
+	title := titleStyle.Render(titleText)
+
 	content := strings.Join(visibleLines, "\n")
-
-	// Add scroll indicator if content is longer than panel
-	if len(lines) > contentHeight {
-		scrollInfo := fmt.Sprintf(" [%d/%d lines]", start+1, len(lines))
-		title = title + scrollInfo
-	}
-
 	return title + "\n" + content + resetCode
 }
 
-func (m model) View() string {
+func (m *model) View() string {
 	if m.width == 0 {
 		return "Loading..."
 	}
 
-	treeWidth := m.width / 3
-	if treeWidth < 25 {
-		treeWidth = 25
-	}
-	if treeWidth > 55 {
-		treeWidth = 55
-	}
-	panelHeight := m.height - 3
+	treeWidth := m.treePanelWidth()
+	panelHeight := m.panelHeight()
 
 	// Left panel - truncate content to panelHeight lines
 	leftContent := m.renderTree()
@@ -213,7 +374,7 @@ func (m model) View() string {
 		Render(leftTruncated)
 
 	rightPanel := lipgloss.NewStyle().
-		Width(m.width - treeWidth - 2).
+		Width(m.width - treeWidth - 1).
 		Height(panelHeight).
 		MaxHeight(panelHeight).
 		PaddingLeft(1).

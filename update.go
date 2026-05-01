@@ -1,13 +1,12 @@
 package main
 
 import (
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
 )
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case fsChangeEvent:
 		// File system changed, schedule debounced refresh
@@ -73,17 +72,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				items := m.getVisibleItems()
 				if m.cursor < len(items)-1 {
 					m.cursor++
-					contentHeight := m.height - 4
+					contentHeight := m.panelHeight() - 1
 					if m.cursor >= m.treeScroll+contentHeight {
 						m.treeScroll = m.cursor - contentHeight + 1
 					}
 				}
 			} else {
-				lines := strings.Split(m.content, "\n")
-				contentHeight := m.height - 4
-				if m.previewScroll < len(lines)-contentHeight {
-					m.previewScroll++
-				}
+				m.previewScroll++
 			}
 		case "enter", " ":
 			items := m.getVisibleItems()

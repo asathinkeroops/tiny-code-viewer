@@ -9,7 +9,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-func (m model) Init() tea.Cmd {
+func (m *model) Init() tea.Cmd {
 	// Start watching the root directory
 	if m.watcher != nil {
 		m.watchDir(m.rootPath)
@@ -18,7 +18,7 @@ func (m model) Init() tea.Cmd {
 }
 
 // waitForFsEvent returns a command that waits for file system events
-func (m model) waitForFsEvent() tea.Cmd {
+func (m *model) waitForFsEvent() tea.Cmd {
 	if m.watcher == nil {
 		return nil
 	}
@@ -153,7 +153,7 @@ func (m *model) refreshTree() {
 		if item.path == selectedPath {
 			m.cursor = i
 			// Adjust scroll if needed
-			contentHeight := m.height - 4
+			contentHeight := m.height - 3
 			if m.cursor < m.treeScroll {
 				m.treeScroll = m.cursor
 			} else if m.cursor >= m.treeScroll+contentHeight {

@@ -8,14 +8,14 @@ import (
 	"github.com/charmbracelet/bubbletea"
 )
 
-func initialModel() model {
+func initialModel() *model {
 	startPath := "."
 	if len(os.Args) > 1 {
 		startPath = os.Args[1]
 	}
 	absPath, _ := filepath.Abs(startPath)
 
-	m := model{
+	m := &model{
 		root:        buildTree(absPath),
 		rootPath:    absPath,
 		expanded:    make(map[string]bool),
@@ -24,7 +24,6 @@ func initialModel() model {
 		watcher:     initialWatcher(),
 		watchedDirs: make(map[string]bool),
 	}
-	// Root directory is always expanded
 	m.expanded[absPath] = true
 	return m
 }
