@@ -9,9 +9,13 @@ This tool is designed to work alongside [Claude Code](https://claude.ai/code), p
 ## Features
 
 - **Split-pane Interface**: Browse directory trees on the left, preview files on the right
-- **Syntax Highlighting**: Support for 20+ programming languages using Chroma
-- **Vim-style Navigation**: Intuitive keyboard shortcuts (h/j/k/l or arrow keys)
+- **Syntax Highlighting**: Support for 23 programming languages using Chroma
+- **Line Numbers**: Line numbers in the preview panel for easy reference
+- **Vim-style Navigation**: Intuitive keyboard shortcuts (h/j/k/l, g/G, arrow keys)
 - **Binary File Detection**: Automatically detects and skips binary files
+- **Lazy Loading**: Directory children loaded on demand for fast startup
+- **Mouse Wheel Support**: Scroll the preview pane with the mouse wheel
+- **Scrollbar**: Visual scroll bar in the preview pane
 - **Responsive Layout**: Adapts to terminal window size
 - **Auto Refresh**: Automatically updates file tree when files are added, removed, or renamed
 - **Debounced Updates**: 200ms delay to prevent excessive refreshes during bulk operations
@@ -26,10 +30,10 @@ Go, Python, JavaScript, TypeScript, JSX, TSX, Java, C, C++, Rust, Ruby, PHP, Bas
 ### Go Install
 
 ```bash
-go install github.com/asathinkeroops/tiny-code-viewer@latest
+go install github.com/asathinkeroops/tiny-code-viewer/cmd/tcv@latest
 
-## run 
-tiny-code-viewer
+## run
+tcv
 ```
 
 ### Build from Source
@@ -76,6 +80,18 @@ go install ./cmd/tcv
 | `Tab` | Switch focus between tree and preview panels |
 | `q` / `Ctrl+C` | Quit |
 
+**Preview panel shortcuts** (when focused):
+
+| Key | Action |
+|-----|--------|
+| `↑` / `k` | Scroll up one line |
+| `↓` / `j` | Scroll down one line |
+| `PgUp` / `Ctrl+U` | Scroll up half page |
+| `PgDn` / `Ctrl+D` | Scroll down half page |
+| `Home` / `g` | Jump to top |
+| `End` / `G` | Jump to bottom |
+| Mouse wheel | Scroll up / down 3 lines |
+
 ## Auto Refresh
 
 The viewer automatically watches for file system changes:
@@ -86,19 +102,19 @@ The viewer automatically watches for file system changes:
 ## User Interface
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ /path/to/directory          │  main.go [1/150 lines]            │
-│ ▼ src                       │  package main                     │
-│   ▶ cmd                     │                                   │
-│   ▶ internal                │  func main() {                    │
-│     main.go                 │      m := initialModel()          │
-│     config.go               │      p := tea.NewProgram(m)       │
-│ ▼ pkg                       │      // ...                       │
-│   utils.go                  │  }                                │
-│                             │                                   │
-├─────────────────────────────────────────────────────────────────┤
-│ ↑/k:Up ↓/j:Down ←/h:Collapse →/l:Expand r:Refresh ... [Tree]   │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│ ~/project                    │  main.go [1/150 lines]                │
+│ ▼ src                        │  1 │ package main                     │
+│   ▶ cmd                      │  2 │                                  │
+│   ▼ internal                 │  3 │ func main() {                    │
+│     ├─ main.go               │  4 │     m := tcv.NewModel()          │
+│     └─ config.go             │  5 │     p := tea.NewProgram(m)       │
+│ ▼ pkg                        │  6 │     // ...                       │
+│   └─ utils.go                │  7 │ }                                │
+│                              │    │                                  │
+├──────────────────────────────────────────────────────────────────────┤
+│ ↑/k Up │ ↓/j Down │ ←/h Collapse │ →/l Expand │ ... │ Tab Switch [Tree]
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Dependencies
@@ -107,6 +123,7 @@ The viewer automatically watches for file system changes:
 - [lipgloss](https://github.com/charmbracelet/lipgloss) - Terminal styling
 - [chroma](https://github.com/alecthomas/chroma) - Syntax highlighting engine
 - [fsnotify](https://github.com/fsnotify/fsnotify) - File system notification
+- [go-runewidth](https://github.com/mattn/go-runewidth) - Handles CJK and wide character widths
 
 ## Project Structure
 
@@ -117,12 +134,12 @@ tiny-code-viewer/
 │       └── main.go        # Application entry point
 ├── internal/
 │   └── tcv/
-│       ├── model.go       # Data structures and styling definitions
-│       ├── tree.go        # File tree building and flattening
-│       ├── file.go        # File loading and language detection
-│       ├── watcher.go     # File system watching and auto-refresh
-│       ├── update.go      # Message handling and state updates
-│       └── view.go        # UI rendering
+│       ├── model.go       # Model, messages, and lipgloss styles
+│       ├── tree.go        # File tree with lazy loading
+│       ├── file.go        # File loading, binary detection, syntax highlighting
+│       ├── watcher.go     # fsnotify watcher, debounced auto-refresh
+│       ├── update.go      # Key/mouse/window event handling (Bubble Tea Update)
+│       └── view.go        # Split-pane UI, line numbers, scrollbar rendering
 ├── go.mod                 # Go module definition
 ├── go.sum                 # Dependency checksums
 └── README.md              # This file
