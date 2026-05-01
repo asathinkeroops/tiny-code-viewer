@@ -40,10 +40,10 @@ git clone https://github.com/asathinkeroops/tiny-code-viewer.git
 cd tiny-code-viewer
 
 # Build
-go build -o tcv
+go build -o tcv ./cmd/tcv
 
 # Optional: Install to $GOPATH/bin
-go install
+go install ./cmd/tcv
 ```
 
 ### Requirements
@@ -112,16 +112,20 @@ The viewer automatically watches for file system changes:
 
 ```
 tiny-code-viewer/
-├── main.go     # Application entry point and initialization
-├── model.go    # Data structures and styling definitions
-├── tree.go     # File tree building and flattening
-├── file.go     # File loading and language detection
-├── watcher.go  # File system watching and auto-refresh
-├── update.go   # Message handling and state updates
-├── view.go     # UI rendering
-├── go.mod      # Go module definition
-├── go.sum      # Dependency checksums
-└── README.md   # This file
+├── cmd/
+│   └── tcv/
+│       └── main.go        # Application entry point
+├── internal/
+│   └── tcv/
+│       ├── model.go       # Data structures and styling definitions
+│       ├── tree.go        # File tree building and flattening
+│       ├── file.go        # File loading and language detection
+│       ├── watcher.go     # File system watching and auto-refresh
+│       ├── update.go      # Message handling and state updates
+│       └── view.go        # UI rendering
+├── go.mod                 # Go module definition
+├── go.sum                 # Dependency checksums
+└── README.md              # This file
 ```
 
 ## License

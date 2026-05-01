@@ -1,4 +1,4 @@
-package main
+package tcv
 
 import (
 	"fmt"
@@ -14,7 +14,6 @@ import (
 func (m *model) renderTree() string {
 	items := m.getVisibleItems()
 
-	// Path header - replace HOME with ~
 	displayPath := m.rootPath
 	homeDir, err := os.UserHomeDir()
 	if err == nil && strings.HasPrefix(displayPath, homeDir) {
@@ -37,14 +36,12 @@ func (m *model) renderTree() string {
 	for i := m.treeScroll; i < end; i++ {
 		item := items[i]
 
-		// Skip root node (depth 0) - header already shows the path
 		if item.depth == 0 {
 			continue
 		}
 
 		name := filepath.Base(item.path)
 
-		// Build tree connector prefix for this item
 		connector := treeConnectorPrefix(items, i, item.depth)
 
 		var expandIcon string
@@ -56,7 +53,6 @@ func (m *model) renderTree() string {
 			}
 		}
 
-		// Truncate name to fit within panel width
 		prefixLen := len(connector + expandIcon)
 		available := maxLineWidth - prefixLen
 		if available < 3 {
@@ -122,8 +118,6 @@ func (m *model) treePanelWidth() int {
 
 func (m *model) previewTextWidth() int {
 	treeW := m.treePanelWidth()
-	// right panel width: m.width - treeW - 1 (subtract border only)
-	// minus PaddingLeft(1) = actual text area
 	w := m.width - treeW - 2
 	if w < 10 {
 		w = 10
@@ -131,7 +125,6 @@ func (m *model) previewTextWidth() int {
 	return w
 }
 
-// truncateStr truncates a string to maxLen visual characters, adding "…" if truncated.
 func truncateStr(s string, maxLen int) string {
 	runes := []rune(s)
 	if len(runes) <= maxLen {
@@ -140,15 +133,9 @@ func truncateStr(s string, maxLen int) string {
 	return string(runes[:maxLen-1]) + "…"
 }
 
-// treeConnectorPrefix builds the connector string for an item based on its
-// position in the tree. Uses box-drawing characters:
-//
-//	├─  for a non-last child, └─  for the last child
-//	│   for an ancestor that still has more siblings below
 func treeConnectorPrefix(items []itemInfo, idx int, depth int) string {
 	var b strings.Builder
 
-	// Ancestor connectors: for each level 1 to depth-1
 	for level := 1; level < depth; level++ {
 		if hasLaterSiblingAtLevel(items, idx, level) {
 			b.WriteString("│  ")
@@ -157,7 +144,6 @@ func treeConnectorPrefix(items []itemInfo, idx int, depth int) string {
 		}
 	}
 
-	// Item connector at current depth
 	if hasLaterSiblingAtLevel(items, idx, depth) {
 		b.WriteString("├─ ")
 	} else {
@@ -167,8 +153,6 @@ func treeConnectorPrefix(items []itemInfo, idx int, depth int) string {
 	return b.String()
 }
 
-// hasLaterSiblingAtLevel checks whether any item after idx has the given depth,
-// stopping if a shallower depth is encountered first.
 func hasLaterSiblingAtLevel(items []itemInfo, idx int, level int) bool {
 	for j := idx + 1; j < len(items); j++ {
 		if items[j].depth < level {
@@ -370,7 +354,6 @@ func (m *model) View() string {
 	treeWidth := m.treePanelWidth()
 	panelHeight := m.panelHeight()
 
-	// Left panel - truncate content to panelHeight lines
 	leftContent := m.renderTree()
 	leftLines := strings.Split(leftContent, "\n")
 	if len(leftLines) > panelHeight {
@@ -378,7 +361,6 @@ func (m *model) View() string {
 	}
 	leftTruncated := strings.Join(leftLines, "\n")
 
-	// Right panel - truncate content to panelHeight lines
 	rightContent := m.renderPreview()
 	rightLines := strings.Split(rightContent, "\n")
 	if len(rightLines) > panelHeight {
@@ -386,7 +368,6 @@ func (m *model) View() string {
 	}
 	rightTruncated := strings.Join(rightLines, "\n")
 
-	// Build panels - both Height and MaxHeight to fill and cap at panelHeight
 	leftPanel := lipgloss.NewStyle().
 		Width(treeWidth).
 		Height(panelHeight).
@@ -405,7 +386,6 @@ func (m *model) View() string {
 
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 
-	// Help bar
 	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Bold(true)
 	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	sepStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
@@ -417,7 +397,6 @@ func (m *model) View() string {
 	}
 	focusTag := " [" + focusStyle.Render(focusLabel) + "]"
 
-	// Build styled help items
 	helpItems := []string{
 		keyStyle.Render("↑/k") + descStyle.Render(" Up"),
 		keyStyle.Render("↓/j") + descStyle.Render(" Down"),

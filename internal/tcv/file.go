@@ -1,4 +1,4 @@
-package main
+package tcv
 
 import (
 	"bytes"

@@ -1,4 +1,4 @@
-package main
+package tcv
 
 import (
 	"time"
@@ -148,8 +148,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// loadDirChildren finds a directory node by path and loads its children.
-// This is used for lazy loading when a directory is expanded.
 func (m *model) loadDirChildren(dirPath string) {
 	node := findNode(&m.root, dirPath)
 	if node != nil {
@@ -157,7 +155,6 @@ func (m *model) loadDirChildren(dirPath string) {
 	}
 }
 
-// findNode recursively finds a node by path in the tree.
 func findNode(node *fileNode, path string) *fileNode {
 	if node.path == path {
 		return node
