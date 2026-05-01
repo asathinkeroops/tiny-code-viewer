@@ -16,15 +16,45 @@ func isBinaryFile(path string) bool {
 
 	buf := make([]byte, 512)
 	n, err := file.Read(buf)
-	if err != nil {
+	if err != nil || n == 0 {
+		return true
+	}
+	buf = buf[:n]
+
+	if n >= 2 {
+		if (buf[0] == 0xFF && buf[1] == 0xFE) || (buf[0] == 0xFE && buf[1] == 0xFF) {
+			return false
+		}
+	}
+	if n >= 3 && buf[0] == 0xEF && buf[1] == 0xBB && buf[2] == 0xBF {
+		return false
+	}
+
+	nullCount := 0
+	nonNullPrintable := 0
+	nonNullTotal := 0
+	for _, b := range buf {
+		if b == 0 {
+			nullCount++
+		} else {
+			nonNullTotal++
+			if (b >= 0x20 && b <= 0x7E) || b == 0x09 || b == 0x0A || b == 0x0D {
+				nonNullPrintable++
+			}
+		}
+	}
+
+	if nullCount > 0 && float64(nullCount)/float64(n) >= 0.4 {
+		if nonNullTotal > 0 && float64(nonNullPrintable)/float64(nonNullTotal) >= 0.8 {
+			return false
+		}
 		return true
 	}
 
-	for i := 0; i < n; i++ {
-		if buf[i] == 0 {
-			return true
-		}
+	if nullCount > 0 {
+		return true
 	}
+
 	return false
 }
 
